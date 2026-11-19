@@ -282,6 +282,14 @@ function readOutputs(runDir) {
 
 /** Judge packs use opaque names; the key that maps them back to a script lives outside the pack. */
 const packName = () => randomUUID().replace(/-/g, "").slice(0, 16);
+
+/** The judge prompt for one reply and ordering, rebuilt the same way every time, so a published run needs no prompt files. */
+function judgePrompt(brief, item, judge, perm) {
+  const shown = brief && isPlain(brief) ? item.raw.trim() : item.script ? renderForJudge(item.script) : "";
+  if (!brief || !shown) return null;
+  const order = shuffled(CRITERION_IDS, `${item.brief}|${item.contestant}|${item.sample}|${judge}|${perm}`);
+  return `${JUDGE_SYSTEM}\n\n${judgeMessage(brief, shown, order, perm)}\n`;
+}
 const keyFile = (runDir, judge) => join(runDir, "judging-keys", `${judge}.json`);
 
 function judgePack(flags) {
@@ -300,12 +308,10 @@ function judgePack(flags) {
   let written = 0;
   for (const item of readOutputs(runDir)) {
     const brief = briefs.get(item.brief);
-    const shown = brief && isPlain(brief) ? item.raw.trim() : item.script ? renderForJudge(item.script) : "";
-    if (!brief || !shown) continue;
+    if (!brief || !judgePrompt(brief, item, judge, 0)) continue;
     if (!keep(item.contestant)) continue;
     for (const perm of [0, 1]) {
-      const order = shuffled(CRITERION_IDS, `${item.brief}|${item.contestant}|${item.sample}|${judge}|${perm}`);
-      const text = `${JUDGE_SYSTEM}\n\n${judgeMessage(brief, shown, order, perm)}\n`;
+      const text = judgePrompt(brief, item, judge, perm);
       const known = Object.entries(keys).find(([, k]) => k.contestant === item.contestant && k.brief === item.brief && k.sample === item.sample && k.perm === perm);
       const name = known ? known[0] : packName();
       if (known && known[1].promptSha256 !== sha256(text)) throw new UsageError(`the script or rubric behind ${name} changed since it was packed; use a new --run folder`);
@@ -382,6 +388,7 @@ function score(flags) {
     return { brief: o.brief, contestant: o.contestant, sample: o.sample, ok: Boolean(o.script && brief), checks: o.script && brief ? checks(o.script, brief) : undefined, parsed: o.script };
   });
   const byKey = new Map(items.map((i) => [`${i.contestant}|${i.brief}|${i.sample}`, i]));
+  const rawOf = new Map(outputs.map((o) => [`${o.contestant}|${o.brief}|${o.sample}`, o]));
   const judgments = [];
   let dropped = 0;
   let unreadable = 0;
@@ -392,8 +399,11 @@ function score(flags) {
       const file = join(runDir, "judging", judge, `${name}.reply.txt`);
       const item = byKey.get(`${key.contestant}|${key.brief}|${key.sample}`);
       if (!existsSync(file) || !item?.ok) continue;
+      // The reply must answer the prompt its key names: rebuilt from the reply it graded, and the prompt file when one is kept.
       const promptFile = join(runDir, "judging", judge, `${name}.prompt.txt`);
-      if (key.promptSha256 && (!existsSync(promptFile) || sha256(readFileSync(promptFile, "utf8")) !== key.promptSha256)) throw new UsageError(`${promptFile} does not match its key; the pack was changed after it was answered`);
+      const rebuilt = judgePrompt(briefs.get(key.brief), rawOf.get(`${key.contestant}|${key.brief}|${key.sample}`), judge, key.perm);
+      const stale = key.promptSha256 && (sha256(rebuilt ?? "") !== key.promptSha256 || (existsSync(promptFile) && sha256(readFileSync(promptFile, "utf8")) !== key.promptSha256));
+      if (stale) throw new UsageError(`${name} for ${judge} does not match its key; the reply or the pack changed after it was answered`);
       const read = readJudgment(readFileSync(file, "utf8"), item.plain ? [item.parsed.raw] : scriptFields(item.parsed));
       if (!read) { unreadable += 1; continue; }
       dropped += read.dropped;

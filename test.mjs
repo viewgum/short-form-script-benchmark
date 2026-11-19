@@ -1,7 +1,7 @@
 // Tests: node test.mjs. No network, no keys, no dependencies.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -400,6 +400,10 @@ test("CLI: a plain run packs the whole reply and scores it", () => {
   assert.equal(results.briefs[0].ask, "Make me a video about paying yourself first, 45 seconds long, for TikTok.");
   assert.equal(render(runDir), 16);
   assert.ok(readFileSync(join(runDir, "scripts", "P01.md"), "utf8").includes("Move twenty-five dollars"));
+  for (const name of Object.keys(keys)) rmSync(join(runDir, "judging", "judge-anthropic", `${name}.prompt.txt`));
+  assert.equal(run(["score", "--briefs", plainFile, "--run", runDir]).status, 0, "a published run needs no prompt files");
+  writeFileSync(join(runDir, "outputs", "gpt-6.2-sol", "P01-1.txt"), `${reply} One more line.`);
+  assert.equal(run(["score", "--briefs", plainFile, "--run", runDir]).status, 2, "a reply changed after judging is refused");
 });
 
 console.log(`ok: ${passed} tests passed`);
