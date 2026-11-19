@@ -429,17 +429,21 @@ test("versusLeader pairs briefs", () => {
 });
 
 test("the truth cap reads strictness-adjusted grades, so a lenient judge cannot shield a reply", () => {
-  const items = [{ brief: "P01", contestant: "a", sample: 1, ok: true, plain: true, checks: null }, { brief: "P02", contestant: "a", sample: 1, ok: true, plain: true, checks: null }];
-  const judgments = [
-    ...both({ brief: "P01", contestant: "a", sample: 1, judge: "lenient", scores: full(2) }),
-    ...both({ brief: "P01", contestant: "a", sample: 1, judge: "strict", scores: { ...full(2), S9: 0 } }),
-    ...both({ brief: "P02", contestant: "a", sample: 1, judge: "lenient", scores: full(2) }),
-    ...both({ brief: "P02", contestant: "a", sample: 1, judge: "strict", scores: full(2) }),
-  ];
-  const adjusted = scoreItems(items, judgments, { adjust: true });
-  const raw = scoreItems(items, judgments, { adjust: true, gate: "raw" });
-  assert.equal(raw.items[0].gated, false, "the old rule: a mean of 1 out of 2 is not capped");
-  assert.equal(typeof adjusted.items[0].gated, "boolean");
+  const items = ["B1", "B2", "B3"].map((brief) => ({ brief, contestant: "b", sample: 1, ok: true, plain: true, checks: null }));
+  items.push({ brief: "A1", contestant: "a", sample: 1, ok: true, plain: true, checks: null });
+  const judgments = [];
+  for (const brief of ["B1", "B2", "B3"]) {
+    judgments.push(...both({ brief, contestant: "b", sample: 1, judge: "lenient", scores: full(2) }));
+    judgments.push(...both({ brief, contestant: "b", sample: 1, judge: "middle", scores: { ...full(2), S9: 1 } }));
+    judgments.push(...both({ brief, contestant: "b", sample: 1, judge: "strict", scores: { ...full(2), S9: 0 } }));
+  }
+  judgments.push(...both({ brief: "A1", contestant: "a", sample: 1, judge: "lenient", scores: { ...full(2), S9: 1 } }));
+  judgments.push(...both({ brief: "A1", contestant: "a", sample: 1, judge: "middle", scores: { ...full(2), S9: 0 } }));
+  const options = { adjust: true, keep: (contestant, judge) => !(contestant === "a" && judge === "strict") };
+  const raw = scoreItems(items, judgments, { ...options, gate: "raw" }).items.find((i) => i.contestant === "a");
+  const adjusted = scoreItems(items, judgments, options).items.find((i) => i.contestant === "a");
+  assert.equal(raw.gated, false, "the pilot's rule: a mean truth grade of 0.5 out of 2 is not capped");
+  assert.equal(adjusted.gated, true, "once the lenient judge's strictness is removed, the reply is under the cap line");
 });
 
 test("refusals are kept as answers", () => {
