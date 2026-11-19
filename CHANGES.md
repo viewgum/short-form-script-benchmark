@@ -46,3 +46,13 @@ scores are not published. The rubric and scoring lines as amended are in `method
   - Score counts a judge as expected when it has keys, even if its reply folder is gone; `attempts.jsonl` keeps started and
     finished rows; a saved refusal is never asked again on resume; a Gemini reply without its own token count counts at its
     worst case.
+- 2026-11-19, after a third review, code and wording only (the plain round was not judged again):
+  - The judge message calls the first spoken line the hook while H1's anchors grade the first spoken sentence. On one-word
+    openings judges sometimes read on to the next sentence. Kept for this round so it reruns as judged; the next round's message
+    will name the first spoken sentence.
+  - The Index without H5 decides which grades are complete before leaving H5 out.
+  - Score expects every judge named in the manifest, a key or a reply folder, counts orderings once each, and expects every
+    contestant and sample count in the manifest; judge-pack records its judge in the manifest.
+  - On resume, a slot whose recorded stop was a refusal or a block is never asked again; a Gemini reply's output is its reported
+    total less its prompt.
+  - The CLI loops keep a reply only when it holds grades.

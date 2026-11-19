@@ -435,7 +435,7 @@ test("versusLeader pairs briefs", () => {
   assert.equal(row.n, 6);
 });
 
-test("the truth cap reads strictness-adjusted grades, so a lenient judge cannot shield a reply", () => {
+test("the truth cap reads strictness-adjusted grades, which removes a judge's average leniency", () => {
   const items = ["B1", "B2", "B3"].map((brief) => ({ brief, contestant: "b", sample: 1, ok: true, plain: true, checks: null }));
   items.push({ brief: "A1", contestant: "a", sample: 1, ok: true, plain: true, checks: null });
   const judgments = [];
@@ -453,6 +453,17 @@ test("the truth cap reads strictness-adjusted grades, so a lenient judge cannot 
   assert.equal(adjusted.gated, true, "once the lenient judge's strictness is removed, the reply is under the cap line");
 });
 
+test("a criterion left out for a sensitivity view does not change which grades are eligible", () => {
+  const items = [{ brief: "P01", contestant: "a", sample: 1, ok: true, plain: true, checks: null }];
+  const twelve = Object.fromEntries(CRITERION_IDS.slice(0, 11).map((id) => [id, 2]));
+  twelve.S9 = 2;
+  const judgments = both({ brief: "P01", contestant: "a", sample: 1, judge: "j", scores: { ...twelve } });
+  assert.ok(Object.keys(twelve).length === 12 && "H5" in twelve, "exactly the minimum, H5 among them");
+  const out = scoreItems(items, judgments, { adjust: false, drop: ["H5"] });
+  assert.equal(out.incomplete, 0);
+  assert.equal(out.items[0].scored, true);
+});
+
 test("refusals are kept as answers", () => {
   const env = { OPENAI_API_KEY: "k", ANTHROPIC_API_KEY: "k", GEMINI_API_KEY: "k" };
   const openai = request({ id: "o", api: "openai", model: "m" }, { prompt: "P", maxTokens: 10 }, env);
@@ -462,6 +473,7 @@ test("refusals are kept as answers", () => {
   const google = request({ id: "g", api: "google", model: "m" }, { prompt: "P", maxTokens: 10 }, env);
   assert.equal(google.read({ candidates: [{ finishReason: "SAFETY", content: { parts: [] } }] }).text, "[blocked: SAFETY]");
   assert.equal(google.read({ candidates: [{ content: { parts: [{ text: "x" }] } }], usageMetadata: { promptTokenCount: 12, thoughtsTokenCount: 5 } }).usage.output, 0, "no reply count: output unknown");
+  assert.equal(google.read({ candidates: [{ content: { parts: [{ text: "x" }] } }], usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 3, totalTokenCount: 20 } }).usage.output, 8, "the total covers every part");
 });
 
 test("judge packs store a random criterion order and score counts missing judges", () => {

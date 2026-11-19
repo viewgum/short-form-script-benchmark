@@ -155,7 +155,7 @@ function budget(runDir, maxUsd) {
 }
 
 /** The settings a run started with; a resume that changes them would mix two experiments, so it is refused. */
-function checkManifest(runDir, briefsText, briefs, contestants) {
+function checkManifest(runDir, briefsText, briefs, contestants, samples) {
   const file = join(runDir, "manifest.json");
   const now = {
     briefsSha256: sha256(briefsText),
@@ -164,7 +164,7 @@ function checkManifest(runDir, briefsText, briefs, contestants) {
     contestants: Object.fromEntries(contestants.map((m) => [m.id, { api: m.api, model: m.model }])),
   };
   if (!existsSync(file)) {
-    writeFileSync(file, `${JSON.stringify({ created: new Date().toISOString(), ...now }, null, 2)}\n`);
+    writeFileSync(file, `${JSON.stringify({ created: new Date().toISOString(), ...now, ...(samples ? { samples } : {}) }, null, 2)}\n`);
     return;
   }
   const before = JSON.parse(readFileSync(file, "utf8"));
@@ -176,6 +176,7 @@ function checkManifest(runDir, briefsText, briefs, contestants) {
     if (was && (was.api !== spec.api || was.model !== spec.model)) throw new UsageError(`${runDir} ran ${id} as ${was.model}; use a new --run folder`);
   }
   before.contestants = { ...before.contestants, ...now.contestants };
+  if (samples) before.samples = Math.max(before.samples ?? 0, samples);
   writeFileSync(file, `${JSON.stringify(before, null, 2)}\n`);
 }
 
@@ -203,8 +204,10 @@ async function generate(flags) {
   needKeys(contestants);
   const release = lockRun(runDir);
   try {
-    checkManifest(runDir, briefsText, briefs, contestants);
+    checkManifest(runDir, briefsText, briefs, contestants, samples);
     const money = budget(runDir, cap);
+    const ledgerRows = existsSync(join(runDir, "ledger.jsonl")) ? readFileSync(join(runDir, "ledger.jsonl"), "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : [];
+    const refused = new Set(ledgerRows.filter((r) => r.kind !== "pending" && /refusal|safety|block|prohibited|content_filter/i.test(String(r.stop ?? ""))).map((r) => `${r.who}|${r.brief}|${r.sample}`));
     const concurrency = Number(flags.concurrency ?? 1);
     if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 16) throw new UsageError("--concurrency must be a whole number from 1 to 16");
     let made = 0;
@@ -213,8 +216,8 @@ async function generate(flags) {
     const one = async (model, brief, sample) => {
       const file = outputFile(runDir, model.id, brief.id, sample);
       const saved = existsSync(file) ? readFileSync(file, "utf8") : "";
-      // A saved refusal is a final answer, never asked again.
-      if (saved && (isPlain(brief) ? saved.trim() : parseCreatorFormat(saved) || /^\[(refusal|blocked)/.test(saved))) return;
+      // A saved refusal is a final answer, never asked again: by its marker, or by the stop the ledger recorded for it.
+      if (saved && (isPlain(brief) ? saved.trim() : parseCreatorFormat(saved) || /^\[(refusal|blocked)/.test(saved) || refused.has(`${model.id}|${brief.id}|${sample}`))) return;
       const prompt = creatorPrompt(brief);
       const worst = worstCaseUsd(rates[model.id], Buffer.byteLength(prompt), MAX_OUTPUT_TOKENS);
       const settle = money.reserve(worst, { role: "contestant", who: model.id, brief: brief.id, sample });
@@ -333,6 +336,11 @@ function judgePack(flags) {
     }
   }
   writeFileSync(keyFile(runDir, judge), `${JSON.stringify(keys, null, 2)}\n`);
+  const manifestFile = join(runDir, "manifest.json");
+  if (existsSync(manifestFile)) {
+    const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+    if (!(manifest.judges ?? []).includes(judge)) writeFileSync(manifestFile, `${JSON.stringify({ ...manifest, judges: [...(manifest.judges ?? []), judge].sort() }, null, 2)}\n`);
+  }
   console.log(`${written} judge prompts in ${dir}; save each answer as the same name ending .reply.txt`);
   return 0;
 }
@@ -405,9 +413,10 @@ function score(flags) {
   const judgments = [];
   let dropped = 0;
   let unreadable = 0;
-  // Judges come from the keys as well as the reply folders, so a judge whose folder is gone still counts as expected.
+  // Expected judges come from the manifest, the keys and the reply folders, so a judge whose folder or key is gone still counts.
+  const manifest = existsSync(join(runDir, "manifest.json")) ? JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf8")) : {};
   const keyed = existsSync(join(runDir, "judging-keys")) ? readdirSync(join(runDir, "judging-keys")).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5)) : [];
-  const judgeIds = [...new Set([...dirs(join(runDir, "judging")), ...keyed])].sort();
+  const judgeIds = [...new Set([...dirs(join(runDir, "judging")), ...keyed, ...(manifest.judges ?? [])])].sort();
   for (const judge of judgeIds) {
     if (!findModel(models, judge)?.maker) throw new UsageError(`judge "${judge}" has no maker in models.json`);
     const keys = existsSync(keyFile(runDir, judge)) ? JSON.parse(readFileSync(keyFile(runDir, judge), "utf8")) : {};
@@ -436,7 +445,7 @@ function score(flags) {
   let missing = 0;
   for (const item of items.filter((i) => i.ok)) {
     for (const judge of judgeIds.filter((j) => keep(item.contestant, j))) {
-      const got = judgments.filter((j) => j.judge === judge && j.contestant === item.contestant && j.brief === item.brief && j.sample === item.sample).length;
+      const got = new Set(judgments.filter((j) => j.judge === judge && j.contestant === item.contestant && j.brief === item.brief && j.sample === item.sample).map((j) => j.perm)).size;
       missing += Math.max(0, 2 - got);
     }
   }
@@ -446,19 +455,18 @@ function score(flags) {
   const summary = Object.fromEntries(metrics.map((metric) => [metric, summarize(scored, metric)]));
   // How much the truth cap moves the ranking: Index with no cap, and with the other cap rule.
   const indexWith = (rule) => summarize(scoreItems(items, judgments, { adjust: true, keep, gate: rule }).items, "index");
-  const withoutH5 = judgments.map(({ scores, ...rest }) => ({ ...rest, scores: Object.fromEntries(Object.entries(scores).filter(([id]) => id !== "H5")) }));
   const sensitivity = {
     gate,
     withoutCap: indexWith("none"),
     otherCapRule: { gate: gate === "raw" ? "adjusted" : "raw", index: indexWith(gate === "raw" ? "adjusted" : "raw") },
     // Index with the on-screen opening text (H5) left out of every judgment, the other criteria reweighted as the formulas do.
-    withoutH5: summarize(scoreItems(items, withoutH5, { adjust: true, keep, gate }).items, "index"),
+    withoutH5: summarize(scoreItems(items, judgments, { adjust: true, keep, gate, drop: ["H5"] }).items, "index"),
   };
   const ranked = tiers(summary.index);
   const leader = ranked[0]?.contestant;
   const paired = leader ? versusLeader(scored, "index", leader) : [];
-  const contestantIds = [...new Set(items.map((i) => i.contestant))];
-  const samplesSeen = Math.max(0, ...items.map((i) => i.sample));
+  const contestantIds = [...new Set([...items.map((i) => i.contestant), ...Object.keys(manifest.contestants ?? {})])];
+  const samplesSeen = Math.max(0, manifest.samples ?? 0, ...items.map((i) => i.sample));
   const coverage = contestantIds.map((id) => ({
     contestant: id,
     expected: briefList.length * samplesSeen,

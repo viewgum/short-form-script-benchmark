@@ -157,7 +157,8 @@ folder. With Codex, for the OpenAI judge:
 ```sh
 for f in runs/my-run/judging/judge-openai/*.prompt.txt; do
   r="${f%.prompt.txt}.reply.txt"; [ -f "$r" ] && continue
-  codex exec -m gpt-6.2-astra --skip-git-repo-check --ephemeral -s read-only -o "$r" - < "$f"
+  codex exec -m gpt-6.2-astra --skip-git-repo-check --ephemeral -s read-only -o "$r.part" - < "$f" &&
+    grep -q '"scores"' "$r.part" && mv "$r.part" "$r"
 done
 ```
 
@@ -166,24 +167,29 @@ With Claude Code, for the Anthropic judge:
 ```sh
 for f in runs/my-run/judging/judge-anthropic/*.prompt.txt; do
   r="${f%.prompt.txt}.reply.txt"; [ -f "$r" ] && continue
-  claude -p --model claude-opus-5-5 < "$f" > "$r"
+  claude -p --model claude-opus-5-5 < "$f" > "$r.part" && grep -q '"scores"' "$r.part" && mv "$r.part" "$r"
 done
 ```
 
-Say which way each judge ran when you publish: an agent CLI adds its own instructions, so its grades are not the same as the
-bare API's.
+A reply is kept only when it holds grades, so a failed call is asked again on the next pass. Run `judge-pack` again right before
+a loop: it checks every packed prompt against the run's replies and refuses if one changed. `score` rebuilds each prompt and
+refuses a reply whose key names a different one. The files are not signed: the hashes show which prompt a reply answered, not
+that nobody edited it afterwards.
+
+Say which way each judge ran when you publish: an agent CLI adds its own instructions, so its grades can differ from the bare
+API's.
 
 `node test.mjs` checks that the prompt, rubric, checks and scoring lines match the published method
-([`method/published-method.json`](method/published-method.json), from the 2026-10-18 pilot) word for word, and
+([`method/published-method.json`](method/published-method.json), from the 2026-10-18 pilot) with the amendments in
+[`method/amendments.json`](method/amendments.json) applied, word for word, and
 tests the parser, the checks, the quote rule, the strictness offsets, the spending cap, the run lock and manifest, and a full
 score and render on a small run. `node scripts/render-scripts.mjs runs/my-run` writes one readable page per brief.
 
 ## Adding a model or a round
 
 Add the model to [`models.json`](models.json) with its maker and the API that serves it, run the commands above, and open a pull
-request with the run folder's `manifest.json`, `ledger.jsonl`, `outputs/`, `judging/`, `judging-keys/` and `results.json`, and say
-how each judge ran. The prompt, rubric and scoring are fixed; any change
-goes in [CHANGES.md](CHANGES.md) with its date before the data it affects is scored.
+request with the run folder's `manifest.json`, `attempts.jsonl`, `outputs/`, `judging/`, `judging-keys/` and `results.json`, and
+say how each judge ran. The prompt, rubric and scoring are fixed; any change goes in [CHANGES.md](CHANGES.md) with its date.
 
 ## Disclosure
 
