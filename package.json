@@ -1,0 +1,36 @@
+{
+  "name": "short-form-script-benchmark",
+  "version": "0.2.0",
+  "description": "An open benchmark of AI models writing 30 to 60 second voiceover scripts for TikTok, YouTube Shorts, Instagram Reels and Facebook Reels: briefs, prompt, rubric, checks, runner and every output.",
+  "type": "module",
+  "bin": {
+    "short-form-script-benchmark": "bin/bench.mjs"
+  },
+  "scripts": {
+    "test": "node test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "benchmark",
+    "llm",
+    "short-form-video",
+    "tiktok",
+    "youtube-shorts",
+    "instagram-reels",
+    "scripts",
+    "hooks",
+    "claude",
+    "gpt",
+    "gemini"
+  ],
+  "author": "ViewGum (https://viewgum.com)",
+  "license": "MIT",
+  "homepage": "https://github.com/viewgum/short-form-script-benchmark#readme",
+  "bugs": "https://github.com/viewgum/short-form-script-benchmark/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/viewgum/short-form-script-benchmark.git"
+  }
+}

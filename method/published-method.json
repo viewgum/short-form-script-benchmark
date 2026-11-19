@@ -1,0 +1,322 @@
+{
+  "note": "The method as published with the 2026-10-18 pilot at https://viewgum.com/benchmarks/methodology: the prompt, the rubric, the checks, the scoring rules and the briefs' public fields. Tests check the code against it word for word.",
+  "id": "pilot-2026-10-18",
+  "wordsPerMinute": 165,
+  "maxOutputTokens": 16000,
+  "resamples": 2000,
+  "directPrompt": "Write a voiceover script for a {platform} video.\n\nCreator: {creator}, a {niche} {kind}. Voice: {voice}.\nAudience: {audience}.\nTopic: {topic}\nLength: about {seconds} seconds, roughly {words} spoken words.\n\nMake it hold attention from the first second:\n- Open with a hook in the first 3 seconds. No greeting, no intro, no \"in this video\".\n- Short spoken sentences. Every line adds something new; never repeat a point.\n- Deliver the payoff the hook promises, clearly, near the end. Then stop: no summary.\n- Only state facts you are confident are true. Do not invent statistics, quotes or testimonials.\n- Give short on-screen text (7 words or fewer) and a specific visual for each line.\n\nUse exactly this format:\nHOOK: <first spoken line>\nHOOK TEXT: <on-screen text for the hook>\nHOOK VISUAL: <what is on screen during the hook>\nLINES:\n1. SAY: <spoken line> | TEXT: <on-screen text, or none> | VISUAL: <what is on screen>\n2. SAY: ... | TEXT: ... | VISUAL: ...\nCLOSE: <last spoken line>\nALT HOOKS:\n- <another hook>\n- <another hook>",
+  "criteria": [
+    {
+      "id": "H1",
+      "name": "Topic clarity in the first line",
+      "anchors": [
+        "the topic is unclear after the first sentence",
+        "the topic is named but vague",
+        "a concrete topic and outcome, with one reading"
+      ]
+    },
+    {
+      "id": "H2",
+      "name": "Curiosity or stakes",
+      "anchors": [
+        "a plain statement with no gap",
+        "a generic tease or a stock \"the truth is\" contrast",
+        "a specific contrast or concrete stakes the viewer wants resolved"
+      ]
+    },
+    {
+      "id": "H3",
+      "name": "Relevance to the audience",
+      "anchors": [
+        "about the speaker, no stakes for the viewer",
+        "the viewer is implied",
+        "speaks to the stated audience with an outcome they need"
+      ]
+    },
+    {
+      "id": "H4",
+      "name": "Promise of what is coming",
+      "anchors": [
+        "no signal of what the end holds",
+        "an implied ending",
+        "a visible promise or mechanism in the first five seconds"
+      ]
+    },
+    {
+      "id": "H5",
+      "name": "Hook on mute",
+      "anchors": [
+        "no on-screen hook text, or text that makes no sense without sound",
+        "on-screen text that is long, busy or gives the answer away",
+        "7 words or fewer that make sense on mute and hold back the answer"
+      ]
+    },
+    {
+      "id": "S1",
+      "name": "Brief fidelity",
+      "anchors": [
+        "misses the brief's topic or point",
+        "on topic but drops or changes the brief's key point",
+        "delivers the brief's topic and key point for the stated audience"
+      ]
+    },
+    {
+      "id": "S2",
+      "name": "Novelty",
+      "anchors": [
+        "common knowledge for this audience",
+        "one familiar point with a new angle",
+        "at least one point the viewer likely does not know, stated plainly"
+      ]
+    },
+    {
+      "id": "S3",
+      "name": "Progression",
+      "anchors": [
+        "lines repeat or stall",
+        "some change between lines",
+        "every line changes something, joined by but, so or therefore, building to the end"
+      ]
+    },
+    {
+      "id": "S4",
+      "name": "Specificity",
+      "anchors": [
+        "abstractions and platitudes",
+        "some concrete nouns",
+        "named objects, numbers, cases or steps in every line"
+      ]
+    },
+    {
+      "id": "S5",
+      "name": "Payoff",
+      "anchors": [
+        "never delivers what the hook promised, or buries it",
+        "delivers it but padded or late",
+        "delivers the promised payoff clearly near the end, then at most one line"
+      ]
+    },
+    {
+      "id": "S6",
+      "name": "Ending and call to action",
+      "anchors": [
+        "bait, several calls to action, a summary, or a call to action before the payoff",
+        "generic but harmless",
+        "one natural closing line or call to action that fits, or a clean stop"
+      ]
+    },
+    {
+      "id": "S7",
+      "name": "Sounds spoken",
+      "anchors": [
+        "reads like an essay or ad copy",
+        "mostly spoken",
+        "sounds like a person talking: contractions, plain words, no machine register"
+      ]
+    },
+    {
+      "id": "S8",
+      "name": "Edit readiness",
+      "anchors": [
+        "no visual intent beyond a face or generic footage",
+        "visuals listed but generic or decorative",
+        "the visuals carry part of the story and at least one is specific to the content"
+      ]
+    },
+    {
+      "id": "S9",
+      "name": "Truth and safety",
+      "anchors": [
+        "a claim that is likely false, an invented statistic, quote or testimonial, or risky advice",
+        "a vague or overstated claim",
+        "clean"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "D1",
+      "name": "Length",
+      "rule": "2 if spoken words are within 15% of the target (seconds x 165 / 60), 1 if within 30%, else 0"
+    },
+    {
+      "id": "D2",
+      "name": "Fast start",
+      "rule": "0 if the hook opens with a greeting or filler; else 2 if the first sentence has 15 words or fewer, 1 if 20 or fewer, else 0"
+    },
+    {
+      "id": "D3",
+      "name": "Short sentences",
+      "rule": "2 if the mean sentence is 14 words or fewer and none is over 25, 1 if the mean is 18 or fewer, else 0"
+    },
+    {
+      "id": "D4",
+      "name": "On-screen text",
+      "rule": "2 if there is hook text and no text is over 7 words, 1 if there is hook text and none is over 10, else 0"
+    },
+    {
+      "id": "D5",
+      "name": "Unsourced figures",
+      "rule": "Figures stating a fact (a percent, money, or a number over 10; not ordinals) that are not in the brief: 2 if none, 1 if one, 0 if two or more"
+    },
+    {
+      "id": "D4h",
+      "name": "Hook text",
+      "rule": "2 if the hook text has 1 to 7 words, 1 if up to 10, else 0"
+    }
+  ],
+  "scoring": [
+    "Each judge scores 14 criteria 0, 1 or 2, quoting the script, in two orderings that are averaged. A 1 or 2 whose quote is not in the script is dropped.",
+    "Only judges from another vendor count toward a contestant's score, after removing each judge's strictness, estimated from every script two judges graded.",
+    "Hooks = 100 x (0.8 x the judged hook criteria H1 to H5 + 0.2 x the hook checks D2 and D4h), each as a share of the top score.",
+    "Script = 100 x (0.8 x the judged script composite + 0.2 x the checks D1 to D5). The composite weights the hook block 35%, structure 30%, substance 20% and craft 15%.",
+    "If the judges' mean truth score (S9) is under 0.5 of 2, the script score is capped at 40.",
+    "Index = (20 x Hooks + 25 x Script) / 45.",
+    "Facts = 100 x (0.8 x truth S9 + 0.2 x the unsourced-figures check D5). Visual plan = 100 x (0.8 x the mean of H5 and S8 + 0.2 x the on-screen text check D4).",
+    "Ranges are 95% bootstrap intervals over briefs, 2,000 resamples, with each brief's samples averaged first."
+  ],
+  "tasks": [
+    {
+      "id": "hooks",
+      "name": "Hooks",
+      "weight": 20,
+      "summary": "The opening line, its on-screen text and first visual, judged on clarity, curiosity, relevance, promise and whether it works on mute."
+    },
+    {
+      "id": "script",
+      "name": "Script",
+      "weight": 25,
+      "summary": "The whole 30 to 60 second voiceover script, judged on fidelity to the brief, novelty, progression, specificity, payoff, ending, how it sounds aloud, visual plan and truth."
+    }
+  ],
+  "briefs": [
+    {
+      "id": "P01",
+      "platform": "tiktok",
+      "targetSec": 45,
+      "niche": "personal finance",
+      "audience": "people in their twenties living paycheck to paycheck",
+      "topic": "Pay yourself first: move a set amount into savings the morning your paycheck lands, before any bills or spending, so saving stops depending on willpower"
+    },
+    {
+      "id": "P02",
+      "platform": "reels",
+      "targetSec": 30,
+      "niche": "cooking",
+      "audience": "busy home cooks",
+      "topic": "Salting pasta water: you need far less than 'salty as the sea'; about one tablespoon of kosher salt per gallon of water is plenty"
+    },
+    {
+      "id": "P03",
+      "platform": "shorts",
+      "targetSec": 45,
+      "niche": "fitness",
+      "audience": "adults starting to exercise at home",
+      "topic": "Three push-up mistakes beginners make: elbows flared out wide, hips sagging, and half reps that stop short of the floor"
+    },
+    {
+      "id": "P04",
+      "platform": "facebook",
+      "targetSec": 60,
+      "niche": "bakery",
+      "audience": "local customers who love good bread",
+      "topic": "Why our sourdough takes 36 hours from mixing to the oven, and what the long, cold rise does for flavor and crust"
+    },
+    {
+      "id": "P05",
+      "platform": "tiktok",
+      "targetSec": 30,
+      "niche": "skincare",
+      "audience": "people who skip sunscreen on days they stay inside",
+      "topic": "You still need sunscreen indoors if you sit near a window: UVA rays pass through ordinary window glass and age your skin"
+    },
+    {
+      "id": "P06",
+      "platform": "shorts",
+      "targetSec": 45,
+      "niche": "productivity",
+      "audience": "remote workers with overflowing to-do lists",
+      "topic": "The two-minute rule: if a task takes less than two minutes, do it right away instead of writing it down"
+    },
+    {
+      "id": "P07",
+      "platform": "reels",
+      "targetSec": 45,
+      "niche": "renting",
+      "audience": "first-time renters",
+      "topic": "Three things to test before signing a lease: the water pressure in the shower, your phone signal in every room, and the move-out cleaning clause"
+    },
+    {
+      "id": "P08",
+      "platform": "tiktok",
+      "targetSec": 60,
+      "niche": "pets",
+      "audience": "new cat owners",
+      "topic": "Why your cat brings you dead animals, why scolding it backfires, and what to do instead"
+    },
+    {
+      "id": "P09",
+      "platform": "shorts",
+      "targetSec": 30,
+      "niche": "travel",
+      "audience": "people booking their first big trip",
+      "topic": "Compare flight prices on a search site, then book directly with the airline, because changes and refunds are far easier"
+    },
+    {
+      "id": "P10",
+      "platform": "facebook",
+      "targetSec": 45,
+      "niche": "small business",
+      "audience": "people starting a side business",
+      "topic": "Open a separate bank account for your business on day one: mixing personal and business spending makes taxes much harder"
+    },
+    {
+      "id": "P11",
+      "platform": "reels",
+      "targetSec": 60,
+      "niche": "gardening",
+      "audience": "beginner vegetable gardeners",
+      "topic": "Water tomatoes deeply two or three times a week instead of a little every day, so the roots grow deep and the plants handle heat"
+    },
+    {
+      "id": "P12",
+      "platform": "tiktok",
+      "targetSec": 45,
+      "niche": "online security",
+      "audience": "people who reuse the same password everywhere",
+      "topic": "Turn on two-factor authentication for your email first, and use an authenticator app instead of text messages if you can"
+    },
+    {
+      "id": "P13",
+      "platform": "shorts",
+      "targetSec": 60,
+      "niche": "study skills",
+      "audience": "high school and college students",
+      "topic": "Active recall beats rereading: close the book, write down everything you remember, then check what you missed"
+    },
+    {
+      "id": "P14",
+      "platform": "facebook",
+      "targetSec": 30,
+      "niche": "home repair",
+      "audience": "homeowners who have never fixed a toilet",
+      "topic": "A toilet that keeps running usually has a worn flapper, a cheap rubber part you can replace yourself in about ten minutes"
+    },
+    {
+      "id": "P15",
+      "platform": "reels",
+      "targetSec": 45,
+      "niche": "coffee",
+      "audience": "iced coffee drinkers",
+      "topic": "Why our cold brew steeps for 18 hours in cold water and tastes smoother and less bitter than hot coffee poured over ice"
+    },
+    {
+      "id": "P16",
+      "platform": "tiktok",
+      "targetSec": 30,
+      "niche": "dog care",
+      "audience": "new dog owners",
+      "topic": "Most dogs only need a bath about once a month; bathing every week can dry out their skin and coat"
+    }
+  ]
+}

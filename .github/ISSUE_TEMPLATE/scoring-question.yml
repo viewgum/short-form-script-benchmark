@@ -1,0 +1,17 @@
+name: A score or a script looks wrong
+description: Point to a script, a judgment or a number you think is wrong.
+labels: [question]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: Which round, brief and model
+      placeholder: 2026-10-18 pilot, P07, GPT-6 Astra script 2
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What looks wrong, and why
+    validations:
+      required: true

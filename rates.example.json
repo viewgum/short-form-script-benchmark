@@ -1,0 +1,13 @@
+{
+  "note": "USD per million tokens, input and output, copied from each vendor's price page on the day you run. Prices change, so this file ships with zeros: fill in the ones you run and save it as rates.json.",
+  "claude-opus-5-5": { "input": 0, "output": 0 },
+  "claude-fable-5-2": { "input": 0, "output": 0 },
+  "claude-sonnet-5-5": { "input": 0, "output": 0 },
+  "claude-haiku-5-5": { "input": 0, "output": 0 },
+  "gpt-6.2-sol": { "input": 0, "output": 0 },
+  "gpt-6.2-astra": { "input": 0, "output": 0 },
+  "gemini-4-carbon": { "input": 0, "output": 0 },
+  "gemini-4-neon": { "input": 0, "output": 0 },
+  "gemini-4-argon": { "input": 0, "output": 0 },
+  "gemini-4-hydrogen": { "input": 0, "output": 0 }
+}
