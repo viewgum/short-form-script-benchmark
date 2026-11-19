@@ -53,6 +53,12 @@ ALT HOOKS:
 - <another hook>
 ```
 
+**Two kinds of round.** A creator round sends the long prompt above, filled from a creator brief. A plain round sends one line,
+the way a person would ask, and nothing else: [`briefs/plain-2026-11-19.json`](briefs/plain-2026-11-19.json) holds the 16 pilot
+topics as asks like "Make me a video about paying yourself first, 45 seconds long, for TikTok." Plain replies come in any
+layout, so judges read each reply whole and the code checks do not apply: a plain round's scores are the judges' grades alone,
+with the same rubric, strictness adjustment and truth cap.
+
 **The briefs.** [`briefs/pilot-2026-10-18.json`](briefs/pilot-2026-10-18.json): 16 made-up creators and small businesses, 5 for
 TikTok, 4 each for Reels and Shorts, 3 for Facebook Reels, from 30 to 60 seconds. Topics are everyday advice (saving, cooking,
 renting, pets, home repair) so judges can check the facts. Two briefs state advice that depends on conditions the brief does not

@@ -20,3 +20,6 @@ the data it affects is scored.
   - The runner writes every call to its ledger as pending, at its worst case, before sending it.
 - 2026-11-19: briefs P11 (tomato watering) and P16 (dog bathing) state advice that depends on conditions the brief does not give.
   They stay unchanged in the next round so its results compare with the pilot's; judges grade against the brief as written.
+- 2026-11-19: plain rounds added (`briefs/plain-2026-11-19.json`): one line per topic, the way a person asks, with no brief or
+  format. Judges read the reply whole; scores are the judged part of each formula alone, since replies in any layout have no
+  code checks.

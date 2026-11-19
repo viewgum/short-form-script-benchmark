@@ -9,17 +9,23 @@ import { PLATFORM_NAMES } from "../lib/prompt.mjs";
 const cell = (text) => String(text ?? "none").replace(/\|/g, "\\|").replace(/\n+/g, " ");
 
 export function pageFor(brief, outputs, names) {
-  const rows = [
-    `# ${brief.id}: ${PLATFORM_NAMES[brief.platform]}, ${brief.targetSec} seconds`,
-    "",
-    `**Audience:** ${brief.audience}`,
-    "",
-    `**Topic:** ${brief.topic}`,
-    "",
-    "Each script below is the model's reply read into one layout, the text the judges saw. Alternative hooks are left out, as judges did not see them.",
-  ];
+  const rows = brief.ask
+    ? [`# ${brief.id}: ${PLATFORM_NAMES[brief.platform]}, ${brief.targetSec} seconds`, "", `**Asked:** ${brief.ask}`, "", "Each reply below is exactly what the model sent back, the text the judges saw."]
+    : [
+      `# ${brief.id}: ${PLATFORM_NAMES[brief.platform]}, ${brief.targetSec} seconds`,
+      "",
+      `**Audience:** ${brief.audience}`,
+      "",
+      `**Topic:** ${brief.topic}`,
+      "",
+      "Each script below is the model's reply read into one layout, the text the judges saw. Alternative hooks are left out, as judges did not see them.",
+    ];
   for (const output of outputs) {
     const s = output.script;
+    if (s.raw !== undefined) {
+      rows.push("", `## ${names.get(output.contestant) ?? output.contestant}, reply ${output.sample}`, "", "```text", s.raw, "```");
+      continue;
+    }
     rows.push("", `## ${names.get(output.contestant) ?? output.contestant}, script ${output.sample}`, "");
     rows.push(`**Hook:** ${s.hook}`, "", `**Hook text:** ${s.hookText ?? "none"}`, "", `**Hook visual:** ${s.hookVisual ?? "none"}`, "");
     rows.push("| # | Spoken | On screen | Visual |", "|---|---|---|---|");

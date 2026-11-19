@@ -356,4 +356,50 @@ test("CLI: judge-pack uses opaque names, then score counts only judges from anot
   assert.match(readFileSync(join(runDir, "scripts", "P01.md"), "utf8"), /## GPT-6\.2 Sol, script 1/);
 });
 
+test("plain asks: one line each, sent as is, never mixed with creator briefs", () => {
+  const plain = readBriefs(JSON.parse(readFileSync(join(ROOT, "briefs/plain-2026-11-19.json"), "utf8")));
+  assert.equal(plain.length, 16);
+  assert.equal(creatorPrompt(plain[0]), "Make me a video about paying yourself first, 45 seconds long, for TikTok.");
+  for (const b of plain) {
+    assert.match(b.ask, new RegExp(`^Make me a video about .+, ${b.targetSec} seconds long, for ${PLATFORM_NAMES[b.platform]}\\.$`));
+    assert.equal(b.platform, byId.get(b.id).platform);
+    assert.equal(b.targetSec, byId.get(b.id).targetSec);
+  }
+  assert.throws(() => readBriefs([plain[0], briefs[1]]), /not both/);
+  assert.throws(() => readBriefs([{ ...plain[0], ask: "two\nlines" }]), /one line/);
+});
+
+test("plain scripts are scored on the judges alone", () => {
+  const items = [{ brief: "P01", contestant: "a", sample: 1, ok: true, plain: true, checks: null }];
+  const judgments = both({ brief: "P01", contestant: "a", sample: 1, judge: "j", scores: full(1) });
+  const { items: scored } = scoreItems(items, judgments, {});
+  assert.equal(scored[0].scored, true);
+  assert.equal(scored[0].hooks, 50);
+  assert.equal(scored[0].facts, 50);
+});
+
+test("CLI: a plain run packs the whole reply and scores it", () => {
+  const dir = mkdtempSync(join(tmpdir(), "bench-"));
+  const runDir = join(dir, "run");
+  const plainFile = join(ROOT, "briefs/plain-2026-11-19.json");
+  mkdirSync(join(runDir, "outputs", "gpt-6.2-sol"), { recursive: true });
+  const reply = "Here is a 45 second script.\n\nYou're not bad at saving. You're saving last. Move twenty-five dollars on payday morning.";
+  writeFileSync(join(runDir, "outputs", "gpt-6.2-sol", "P01-1.txt"), reply);
+  assert.equal(run(["judge-pack", "--briefs", plainFile, "--run", runDir, "--judge", "judge-anthropic"]).status, 0);
+  const keys = JSON.parse(readFileSync(join(runDir, "judging-keys", "judge-anthropic.json"), "utf8"));
+  for (const name of Object.keys(keys)) {
+    const prompt = readFileSync(join(runDir, "judging", "judge-anthropic", `${name}.prompt.txt`), "utf8");
+    assert.match(prompt, /The person asked, in these words: Make me a video about paying yourself first/);
+    assert.ok(prompt.includes("Move twenty-five dollars on payday morning."));
+    writeFileSync(join(runDir, "judging", "judge-anthropic", `${name}.reply.txt`), JSON.stringify({ scores: Object.fromEntries(CRITERION_IDS.map((id) => [id, { score: 2, quote: "saving last" }])) }));
+  }
+  assert.equal(run(["score", "--briefs", plainFile, "--run", runDir]).status, 0);
+  const results = JSON.parse(readFileSync(join(runDir, "results.json"), "utf8"));
+  assert.equal(results.items[0].scored, true);
+  assert.equal(results.items[0].index, 100);
+  assert.equal(results.briefs[0].ask, "Make me a video about paying yourself first, 45 seconds long, for TikTok.");
+  assert.equal(render(runDir), 16);
+  assert.ok(readFileSync(join(runDir, "scripts", "P01.md"), "utf8").includes("Move twenty-five dollars"));
+});
+
 console.log(`ok: ${passed} tests passed`);

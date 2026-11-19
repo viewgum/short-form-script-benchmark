@@ -1,0 +1,102 @@
+{
+  "id": "plain-2026-11-19",
+  "note": "The 16 pilot topics as one plain line each, the way a person would ask: no brief, no format, no hook instructions. Same platforms and lengths as the pilot.",
+  "briefs": [
+    {
+      "id": "P01",
+      "platform": "tiktok",
+      "targetSec": 45,
+      "ask": "Make me a video about paying yourself first, 45 seconds long, for TikTok."
+    },
+    {
+      "id": "P02",
+      "platform": "reels",
+      "targetSec": 30,
+      "ask": "Make me a video about how much salt to put in pasta water, 30 seconds long, for Instagram Reels."
+    },
+    {
+      "id": "P03",
+      "platform": "shorts",
+      "targetSec": 45,
+      "ask": "Make me a video about common push-up mistakes, 45 seconds long, for YouTube Shorts."
+    },
+    {
+      "id": "P04",
+      "platform": "facebook",
+      "targetSec": 60,
+      "ask": "Make me a video about why sourdough bread takes so long to make, 60 seconds long, for Facebook Reels."
+    },
+    {
+      "id": "P05",
+      "platform": "tiktok",
+      "targetSec": 30,
+      "ask": "Make me a video about why you need sunscreen near a window, 30 seconds long, for TikTok."
+    },
+    {
+      "id": "P06",
+      "platform": "shorts",
+      "targetSec": 45,
+      "ask": "Make me a video about the two-minute rule for to-do lists, 45 seconds long, for YouTube Shorts."
+    },
+    {
+      "id": "P07",
+      "platform": "reels",
+      "targetSec": 45,
+      "ask": "Make me a video about what to check before signing a lease, 45 seconds long, for Instagram Reels."
+    },
+    {
+      "id": "P08",
+      "platform": "tiktok",
+      "targetSec": 60,
+      "ask": "Make me a video about why cats bring you dead animals, 60 seconds long, for TikTok."
+    },
+    {
+      "id": "P09",
+      "platform": "shorts",
+      "targetSec": 30,
+      "ask": "Make me a video about booking flights directly with the airline, 30 seconds long, for YouTube Shorts."
+    },
+    {
+      "id": "P10",
+      "platform": "facebook",
+      "targetSec": 45,
+      "ask": "Make me a video about opening a separate bank account for a side business, 45 seconds long, for Facebook Reels."
+    },
+    {
+      "id": "P11",
+      "platform": "reels",
+      "targetSec": 60,
+      "ask": "Make me a video about how often to water tomatoes, 60 seconds long, for Instagram Reels."
+    },
+    {
+      "id": "P12",
+      "platform": "tiktok",
+      "targetSec": 45,
+      "ask": "Make me a video about turning on two-factor authentication for your email, 45 seconds long, for TikTok."
+    },
+    {
+      "id": "P13",
+      "platform": "shorts",
+      "targetSec": 60,
+      "ask": "Make me a video about active recall versus rereading when you study, 60 seconds long, for YouTube Shorts."
+    },
+    {
+      "id": "P14",
+      "platform": "facebook",
+      "targetSec": 30,
+      "ask": "Make me a video about fixing a toilet that keeps running, 30 seconds long, for Facebook Reels."
+    },
+    {
+      "id": "P15",
+      "platform": "reels",
+      "targetSec": 45,
+      "ask": "Make me a video about why cold brew tastes smoother than iced coffee, 45 seconds long, for Instagram Reels."
+    },
+    {
+      "id": "P16",
+      "platform": "tiktok",
+      "targetSec": 30,
+      "ask": "Make me a video about how often to bathe a dog, 30 seconds long, for TikTok."
+    }
+  ]
+}

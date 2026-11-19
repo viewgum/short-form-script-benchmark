@@ -5,7 +5,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realp
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { creatorPrompt, readBriefs, WORDS_PER_MIN } from "../lib/prompt.mjs";
+import { creatorPrompt, isPlain, readBriefs, WORDS_PER_MIN } from "../lib/prompt.mjs";
 import { CRITERION_IDS, JUDGE_SYSTEM, judgeMessage, readJudgment } from "../lib/rubric.mjs";
 import { APIS, call, costUsd, refusedBeforeWork, worstCaseUsd } from "../lib/providers.mjs";
 import { checks, parseCreatorFormat, renderForJudge, scriptFields } from "../lib/shape.mjs";
@@ -206,7 +206,7 @@ async function generate(flags) {
     let stop = 0;
     const one = async (model, brief, sample) => {
       const file = outputFile(runDir, model.id, brief.id, sample);
-      if (existsSync(file) && parseCreatorFormat(readFileSync(file, "utf8"))) return;
+      if (existsSync(file) && (isPlain(brief) ? readFileSync(file, "utf8").trim() : parseCreatorFormat(readFileSync(file, "utf8")))) return;
       const prompt = creatorPrompt(brief);
       const worst = worstCaseUsd(rates[model.id], Buffer.byteLength(prompt), MAX_OUTPUT_TOKENS);
       const settle = money.reserve(worst, { role: "contestant", who: model.id, brief: brief.id, sample });
@@ -229,7 +229,7 @@ async function generate(flags) {
         writeFileSync(`${file}.part`, result.text);
         renameSync(`${file}.part`, file);
         made += 1;
-        if (!parseCreatorFormat(result.text)) console.log(`${model.id} ${brief.id} #${sample}: reply kept, but not in the prompt's format (scored as unparsed)`);
+        if (!isPlain(brief) && !parseCreatorFormat(result.text)) console.log(`${model.id} ${brief.id} #${sample}: reply kept, but not in the prompt's format (scored as unparsed)`);
         console.log(`${model.id} ${brief.id} #${sample}: ${result.usage.output} output tokens, $${usd.toFixed(4)}, ${(result.ms / 1000).toFixed(1)} s`);
       } catch (error) {
         failed += 1;
@@ -273,7 +273,8 @@ function readOutputs(runDir) {
     for (const name of readdirSync(join(root, contestant)).sort()) {
       const match = /^(.+)-(\d+)\.txt$/.exec(name);
       if (!match) continue;
-      out.push({ contestant, brief: match[1], sample: Number(match[2]), script: parseCreatorFormat(readFileSync(join(root, contestant, name), "utf8")) });
+      const raw = readFileSync(join(root, contestant, name), "utf8");
+      out.push({ contestant, brief: match[1], sample: Number(match[2]), raw, script: parseCreatorFormat(raw) });
     }
   }
   return out;
@@ -299,11 +300,12 @@ function judgePack(flags) {
   let written = 0;
   for (const item of readOutputs(runDir)) {
     const brief = briefs.get(item.brief);
-    if (!brief || !item.script) continue;
+    const shown = brief && isPlain(brief) ? item.raw.trim() : item.script ? renderForJudge(item.script) : "";
+    if (!brief || !shown) continue;
     if (!keep(item.contestant)) continue;
     for (const perm of [0, 1]) {
       const order = shuffled(CRITERION_IDS, `${item.brief}|${item.contestant}|${item.sample}|${judge}|${perm}`);
-      const text = `${JUDGE_SYSTEM}\n\n${judgeMessage(brief, renderForJudge(item.script), order, perm)}\n`;
+      const text = `${JUDGE_SYSTEM}\n\n${judgeMessage(brief, shown, order, perm)}\n`;
       const known = Object.entries(keys).find(([, k]) => k.contestant === item.contestant && k.brief === item.brief && k.sample === item.sample && k.perm === perm);
       const name = known ? known[0] : packName();
       if (known && known[1].promptSha256 !== sha256(text)) throw new UsageError(`the script or rubric behind ${name} changed since it was packed; use a new --run folder`);
@@ -376,6 +378,7 @@ function score(flags) {
   const outputs = readOutputs(runDir);
   const items = outputs.map((o) => {
     const brief = briefs.get(o.brief);
+    if (brief && isPlain(brief)) return { brief: o.brief, contestant: o.contestant, sample: o.sample, ok: Boolean(o.raw.trim()), plain: true, checks: null, parsed: { raw: o.raw.trim() } };
     return { brief: o.brief, contestant: o.contestant, sample: o.sample, ok: Boolean(o.script && brief), checks: o.script && brief ? checks(o.script, brief) : undefined, parsed: o.script };
   });
   const byKey = new Map(items.map((i) => [`${i.contestant}|${i.brief}|${i.sample}`, i]));
@@ -391,7 +394,7 @@ function score(flags) {
       if (!existsSync(file) || !item?.ok) continue;
       const promptFile = join(runDir, "judging", judge, `${name}.prompt.txt`);
       if (key.promptSha256 && (!existsSync(promptFile) || sha256(readFileSync(promptFile, "utf8")) !== key.promptSha256)) throw new UsageError(`${promptFile} does not match its key; the pack was changed after it was answered`);
-      const read = readJudgment(readFileSync(file, "utf8"), scriptFields(item.parsed));
+      const read = readJudgment(readFileSync(file, "utf8"), item.plain ? [item.parsed.raw] : scriptFields(item.parsed));
       if (!read) { unreadable += 1; continue; }
       dropped += read.dropped;
       judgments.push({ brief: item.brief, contestant: item.contestant, sample: item.sample, judge, perm: key.perm, scores: read.scores });
@@ -425,7 +428,7 @@ function score(flags) {
       return { id, name: m?.name ?? id, maker: m?.maker ?? null, model: m?.model ?? null };
     }),
     judges: [...new Set(judgments.map((j) => j.judge))].map((id) => ({ id, name: findModel(models, id)?.name ?? id, maker: findModel(models, id)?.maker ?? null })),
-    briefs: briefList.map(({ id, platform, targetSec, niche, audience, topic }) => ({ id, platform, targetSec, niche, audience, topic })),
+    briefs: briefList.map(({ id, platform, targetSec, niche, audience, topic, ask }) => (ask ? { id, platform, targetSec, ask } : { id, platform, targetSec, niche, audience, topic })),
     counts: { scripts: items.length, unparsed: items.filter((i) => !i.ok).length, judgments: judgments.length, unreadableReplies: unreadable, droppedQuotes: dropped, incompleteGrades: incomplete },
     coverage,
     severity,
