@@ -5,9 +5,9 @@ Reels or Facebook Reels? This repo holds what you need to run the benchmark: 16 
 the prompts, a 14-criterion rubric, the checks code runs, the scoring code and a runner with a spending cap. The results hold
 for these 16 English asks and these judges, nothing wider.
 
-Each model gets one plain call to its maker's own API: the prompt below, no system prompt, default settings, up to 16,000 output
-tokens. Judges are not told who wrote a reply, and a model's score uses only judges from other makers. A
-judge grades only other makers' scripts, and each judge's strictness is estimated from the scripts two judges graded.
+Each model gets one plain call to its maker's own API: in a creator round the prompt below, in a plain round only the one-line
+ask; no system prompt, default settings, up to 16,000 output tokens. Judges are not told who wrote a reply, a judge grades only
+other makers' replies, and each judge's strictness is estimated from the replies two judges graded.
 
 ## Results
 
