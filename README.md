@@ -109,7 +109,8 @@ least 12 of the 14 criteria. The judge's instructions and message are in [`lib/r
   0.2 x the mean of D1 to D5); the composite weights four groups: H1, H2, H3 and H5 35%; H4, S3 and S5 30%; S1, S2 and S4 20%; S6,
   S7 and S8 15%.
 - If the judges' truth score (S9), after each judge's strictness is removed, is under 0.5 of 2, the script score is capped at
-  40. (The pilot used the truth grades before that adjustment; `score --gate raw` reproduces it.)
+  40. (The pilot used the truth grades before that adjustment; `score --gate raw` reproduces it.) `results.json` also gives Index
+  with no cap and with the other cap rule, under `sensitivity`, so a reader can see how much the cap moves the order.
 - In a plain round there are no code checks, so Hooks, Script, Facts and Visual plan are the judged shares alone, times 100.
 - Index = (20 x Hooks + 25 x Script) / 45. Facts = 100 x (0.8 x S9 + 0.2 x D5). Visual plan = 100 x (0.8 x the mean of H5 and
   S8 + 0.2 x D4), each term a share of its top grade.

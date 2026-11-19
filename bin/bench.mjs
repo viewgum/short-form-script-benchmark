@@ -436,9 +436,13 @@ function score(flags) {
       missing += Math.max(0, 2 - got);
     }
   }
-  const { items: scored, severity, incomplete } = scoreItems(items, judgments, { adjust: true, keep, gate: flags.gate === "raw" ? "raw" : "adjusted" });
+  const gate = flags.gate === "raw" ? "raw" : "adjusted";
+  const { items: scored, severity, incomplete } = scoreItems(items, judgments, { adjust: true, keep, gate });
   const metrics = ["index", "hooks", "script", "facts", "visualPlan"];
   const summary = Object.fromEntries(metrics.map((metric) => [metric, summarize(scored, metric)]));
+  // How much the truth cap moves the ranking: Index with no cap, and with the other cap rule.
+  const indexWith = (rule) => summarize(scoreItems(items, judgments, { adjust: true, keep, gate: rule }).items, "index");
+  const sensitivity = { gate, withoutCap: indexWith("none"), otherCapRule: { gate: gate === "raw" ? "adjusted" : "raw", index: indexWith(gate === "raw" ? "adjusted" : "raw") } };
   const ranked = tiers(summary.index);
   const leader = ranked[0]?.contestant;
   const paired = leader ? versusLeader(scored, "index", leader) : [];
@@ -468,6 +472,7 @@ function score(flags) {
     summary,
     tiers: ranked,
     versusLeader: paired,
+    sensitivity,
     items: scored.map(({ parsed, ...rest }) => rest),
     outputs: items.filter((i) => i.ok).map((i) => ({ brief: i.brief, contestant: i.contestant, sample: i.sample, script: i.parsed })),
   };
