@@ -54,8 +54,8 @@ ALT HOOKS:
 - <another hook>
 ```
 
-**Two kinds of round.** A creator round sends the long prompt above, filled from a creator brief. A plain round sends one line,
-the way a person would ask, and nothing else: [`briefs/plain-2026-11-19.json`](briefs/plain-2026-11-19.json) holds the 16 pilot
+**Two kinds of round.** A creator round sends the long prompt above, filled from a creator brief. A plain round sends one line
+written for the round, and nothing else: [`briefs/plain-2026-11-19.json`](briefs/plain-2026-11-19.json) holds the 16 pilot
 topics as asks like "Make me a video about paying yourself first, 45 seconds long, for TikTok." Plain replies come in any
 layout, so judges read each reply whole and the code checks do not apply: a plain round's scores are the judges' grades alone,
 with the same rubric, strictness adjustment and truth cap.
@@ -114,11 +114,13 @@ least 12 of the 14 criteria. The judge's instructions and message are in [`lib/r
 - In a creator round: Facts = 100 x (0.8 x S9 + 0.2 x D5). Visual plan = 100 x (0.8 x the mean of H5 and S8 + 0.2 x D4), each
   term a share of its top grade.
 - In a plain round replies come in any layout, so there are no code checks: Hooks = 100 x the mean of H1 to H5, Script = 100 x
-  the judged composite, Facts = 100 x S9, Visual plan = 100 x the mean of H5 and S8. One reply per brief.
+  the judged composite, Facts = 100 x S9, Visual plan = 100 x the mean of H5 and S8. The published plain round used
+  `--samples 1`, one reply per brief.
 - In both: Index = (20 x Hooks + 25 x Script) / 45.
-- Ranges are 95% bootstrap intervals over briefs, 2,000 resamples, each brief's scripts averaged first. A tier starts with the
-  best model left; every model left whose range reaches that model's low end joins it. Each model's difference from the leader
-  is also given on matched briefs, with a paired 95% range, which says more than the tiers.
+- Ranges are 95% bootstrap intervals over briefs, 2,000 resamples, each brief's scripts averaged first. Each model's difference from
+  the leader is given on matched briefs, with a paired 95% range; these are exploratory, since the leader is picked from the same
+  data and the judges' strictness offsets are held fixed. `results.json` also groups models into overlap tiers (a tier starts
+  with the best model left and takes every model whose range reaches its low end), which can put a lower mean above a higher one.
 
 ## Run it yourself
 

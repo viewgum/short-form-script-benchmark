@@ -41,10 +41,17 @@ test("the prompt is the published one, filled from each brief", () => {
   }
 });
 
-test("the rubric, checks and scoring lines are the published ones", () => {
-  assert.deepEqual(CRITERIA, published.criteria);
+test("the rubric, checks and scoring lines are the published ones with the listed amendments", () => {
+  const { amendments } = JSON.parse(readFileSync(join(ROOT, "method/amendments.json"), "utf8"));
+  const criteria = structuredClone(published.criteria);
+  const scoring = [...published.scoring];
+  for (const change of amendments) {
+    for (const [id, criterion] of Object.entries(change.criteria ?? {})) criteria[criteria.findIndex((c) => c.id === id)] = criterion;
+    for (const [index, line] of Object.entries(change.scoring ?? {})) scoring[Number(index)] = line;
+  }
+  assert.deepEqual(CRITERIA, criteria);
   assert.deepEqual(CHECK_RULES, published.checks);
-  assert.deepEqual(SCORING_LINES, published.scoring);
+  assert.deepEqual(SCORING_LINES, scoring);
   assert.equal(published.wordsPerMinute, 165);
 });
 
@@ -168,8 +175,8 @@ test("judgeMessage lists every criterion and reverses anchors in the second orde
   const m0 = judgeMessage(brief, "SCRIPT TEXT", order, 0);
   const m1 = judgeMessage(brief, "SCRIPT TEXT", order, 1);
   for (const id of CRITERION_IDS) assert.match(m0, new RegExp(`^${id} `, "m"));
-  assert.match(m0, /H1 Topic clarity in the first line: 0 = the topic is unclear/);
-  assert.match(m1, /H1 Topic clarity in the first line: 2 = a concrete topic/);
+  assert.match(m0, /H1 Topic clarity in the first spoken sentence: 0 = the topic is unclear/);
+  assert.match(m1, /H1 Topic clarity in the first spoken sentence: 2 = the first spoken sentence gives a concrete topic/);
   assert.match(JUDGE_SYSTEM, /Reply with JSON only/);
 });
 
@@ -454,6 +461,7 @@ test("refusals are kept as answers", () => {
   assert.equal(anthropic.read({ content: [], stop_reason: "refusal", usage: {} }).text, "[refusal]");
   const google = request({ id: "g", api: "google", model: "m" }, { prompt: "P", maxTokens: 10 }, env);
   assert.equal(google.read({ candidates: [{ finishReason: "SAFETY", content: { parts: [] } }] }).text, "[blocked: SAFETY]");
+  assert.equal(google.read({ candidates: [{ content: { parts: [{ text: "x" }] } }], usageMetadata: { promptTokenCount: 12, thoughtsTokenCount: 5 } }).usage.output, 0, "no reply count: output unknown");
 });
 
 test("judge packs store a random criterion order and score counts missing judges", () => {
@@ -469,6 +477,9 @@ test("judge packs store a random criterion order and score counts missing judges
   const out = run(["score", "--briefs", plainFile, "--run", runDir]);
   assert.equal(out.status, 0, out.stderr);
   assert.equal(JSON.parse(readFileSync(join(runDir, "results.json"), "utf8")).counts.missingReplies, 2, "the Anthropic judge's two replies are missing");
+  rmSync(join(runDir, "judging", "judge-anthropic"), { recursive: true });
+  assert.equal(run(["score", "--briefs", plainFile, "--run", runDir]).status, 0);
+  assert.equal(JSON.parse(readFileSync(join(runDir, "results.json"), "utf8")).counts.missingReplies, 2, "a judge whose folder is gone still counts");
 });
 
 console.log(`ok: ${passed} tests passed`);

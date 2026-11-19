@@ -212,7 +212,9 @@ async function generate(flags) {
     let stop = 0;
     const one = async (model, brief, sample) => {
       const file = outputFile(runDir, model.id, brief.id, sample);
-      if (existsSync(file) && (isPlain(brief) ? readFileSync(file, "utf8").trim() : parseCreatorFormat(readFileSync(file, "utf8")))) return;
+      const saved = existsSync(file) ? readFileSync(file, "utf8") : "";
+      // A saved refusal is a final answer, never asked again.
+      if (saved && (isPlain(brief) ? saved.trim() : parseCreatorFormat(saved) || /^\[(refusal|blocked)/.test(saved))) return;
       const prompt = creatorPrompt(brief);
       const worst = worstCaseUsd(rates[model.id], Buffer.byteLength(prompt), MAX_OUTPUT_TOKENS);
       const settle = money.reserve(worst, { role: "contestant", who: model.id, brief: brief.id, sample });
@@ -403,7 +405,10 @@ function score(flags) {
   const judgments = [];
   let dropped = 0;
   let unreadable = 0;
-  for (const judge of dirs(join(runDir, "judging"))) {
+  // Judges come from the keys as well as the reply folders, so a judge whose folder is gone still counts as expected.
+  const keyed = existsSync(join(runDir, "judging-keys")) ? readdirSync(join(runDir, "judging-keys")).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5)) : [];
+  const judgeIds = [...new Set([...dirs(join(runDir, "judging")), ...keyed])].sort();
+  for (const judge of judgeIds) {
     if (!findModel(models, judge)?.maker) throw new UsageError(`judge "${judge}" has no maker in models.json`);
     const keys = existsSync(keyFile(runDir, judge)) ? JSON.parse(readFileSync(keyFile(runDir, judge), "utf8")) : {};
     for (const [name, key] of Object.entries(keys)) {
@@ -427,8 +432,7 @@ function score(flags) {
     const b = findModel(models, judge)?.maker;
     return Boolean(a && b && a !== b);
   };
-  // Every reply should carry two orderings from every judge of another maker that has a pack in this run.
-  const judgeIds = dirs(join(runDir, "judging"));
+  // Every reply should carry two orderings from every judge of another maker that has a pack or replies in this run.
   let missing = 0;
   for (const item of items.filter((i) => i.ok)) {
     for (const judge of judgeIds.filter((j) => keep(item.contestant, j))) {
@@ -442,7 +446,14 @@ function score(flags) {
   const summary = Object.fromEntries(metrics.map((metric) => [metric, summarize(scored, metric)]));
   // How much the truth cap moves the ranking: Index with no cap, and with the other cap rule.
   const indexWith = (rule) => summarize(scoreItems(items, judgments, { adjust: true, keep, gate: rule }).items, "index");
-  const sensitivity = { gate, withoutCap: indexWith("none"), otherCapRule: { gate: gate === "raw" ? "adjusted" : "raw", index: indexWith(gate === "raw" ? "adjusted" : "raw") } };
+  const withoutH5 = judgments.map(({ scores, ...rest }) => ({ ...rest, scores: Object.fromEntries(Object.entries(scores).filter(([id]) => id !== "H5")) }));
+  const sensitivity = {
+    gate,
+    withoutCap: indexWith("none"),
+    otherCapRule: { gate: gate === "raw" ? "adjusted" : "raw", index: indexWith(gate === "raw" ? "adjusted" : "raw") },
+    // Index with the on-screen opening text (H5) left out of every judgment, the other criteria reweighted as the formulas do.
+    withoutH5: summarize(scoreItems(items, withoutH5, { adjust: true, keep, gate }).items, "index"),
+  };
   const ranked = tiers(summary.index);
   const leader = ranked[0]?.contestant;
   const paired = leader ? versusLeader(scored, "index", leader) : [];
@@ -480,8 +491,9 @@ function score(flags) {
   // Every call the run made, without its cost: what a reader needs to see that each slot was asked once.
   const ledgerFile = join(runDir, "ledger.jsonl");
   if (existsSync(ledgerFile)) {
-    const attempts = readFileSync(ledgerFile, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)).filter((r) => r.kind === "settled" || r.kind === undefined)
-      .map(({ at, role, who, brief, sample, file, ok, stop, usage, note, uncertain }) => ({ at, role, who, brief, sample, file, ok, stop, usage, note, uncertain }));
+    // Started (pending) and finished (settled) rows share an id, so a call that started and never finished shows.
+    const attempts = readFileSync(ledgerFile, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line))
+      .map(({ at, kind, id, role, who, brief, sample, file, ok, stop, usage, note, uncertain }) => ({ at, kind: kind ?? "settled", id, role, who, brief, sample, file, ok, stop, usage, note, uncertain }));
     writeFileSync(join(runDir, "attempts.jsonl"), attempts.map((a) => JSON.stringify(a)).join("\n") + "\n");
   }
   const row = (metric, id) => {

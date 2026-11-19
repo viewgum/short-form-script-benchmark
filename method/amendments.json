@@ -1,0 +1,31 @@
+{
+  "note": "Changes to the published method, in order. Tests check that the published method with these applied is what the code runs. Each is explained in CHANGES.md.",
+  "amendments": [
+    {
+      "date": "2026-11-19",
+      "criteria": {
+        "H1": {
+          "id": "H1",
+          "name": "Topic clarity in the first spoken sentence",
+          "anchors": [
+            "the topic is unclear after the first spoken sentence",
+            "the first spoken sentence names the topic but vaguely",
+            "the first spoken sentence gives a concrete topic and outcome, with one reading"
+          ]
+        },
+        "H5": {
+          "id": "H5",
+          "name": "Hook on mute",
+          "anchors": [
+            "no text on screen in the opening (an overlay, or readable words on a prop or sign the script shows), or text that makes no sense without sound",
+            "opening text on screen that is long, busy or gives the answer away",
+            "opening text on screen of 7 words or fewer that makes sense on mute and holds back the answer"
+          ]
+        }
+      },
+      "scoring": {
+        "4": "If the judges' truth score (S9), after each judge's strictness is removed, is under 0.5 of 2, the script score is capped at 40."
+      }
+    }
+  ]
+}
