@@ -23,3 +23,12 @@ the data it affects is scored.
 - 2026-11-19: plain rounds added (`briefs/plain-2026-11-19.json`): one line per topic, the way a person asks, with no brief or
   format. Judges read the reply whole; scores are the judged part of each formula alone, since replies in any layout have no
   code checks.
+- 2026-11-19, after an independent review of the first plain round, before it was published (that round was judged again):
+  - Plain-round judges are told to grade the video the reply proposes (its first spoken line is the hook), not what the reply
+    says about itself or whether it can make a video file.
+  - The truth cap reads the truth grade after each judge's strictness is removed, so a lenient judge on a panel cannot shield a
+    reply; `score --gate raw` keeps the pilot's rule.
+  - Tiers compare every model left with that tier's leader, not only the model before it; paired differences from the leader on
+    matched briefs are reported.
+  - Each pack key stores a random criterion order; score counts missing judge replies and refuses a key without a prompt hash.
+  - Typed refusals and blocked replies are kept as answers; a reply that reports only part of its usage counts at its worst case.

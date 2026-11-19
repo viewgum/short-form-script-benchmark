@@ -1,11 +1,12 @@
 # Short-form script benchmark
 
-Which AI model writes the best 30 to 60 second voiceover script for TikTok, YouTube Shorts, Instagram Reels and Facebook Reels,
-when each one is asked the same way? This repo holds what you need to run the benchmark: 16 briefs, the one prompt every model
-gets, a 14-criterion rubric, the checks code runs, the scoring code and a runner with a spending cap.
+How do AI models score when each is asked, the same way, for a 30 to 60 second video for TikTok, YouTube Shorts, Instagram
+Reels or Facebook Reels? This repo holds what you need to run the benchmark: 16 topics as creator briefs and as one-line asks,
+the prompts, a 14-criterion rubric, the checks code runs, the scoring code and a runner with a spending cap. The results hold
+for these 16 English asks and these judges, nothing wider.
 
 Each model gets one plain call to its maker's own API: the prompt below, no system prompt, default settings, up to 16,000 output
-tokens. Judges grade the scripts without being told who wrote them, and a model's score uses only judges from other makers. A
+tokens. Judges are not told who wrote a reply, and a model's score uses only judges from other makers. A
 judge grades only other makers' scripts, and each judge's strictness is estimated from the scripts two judges graded.
 
 ## Results
@@ -22,7 +23,7 @@ Not measured: real views, retention or swipes. Nothing here was posted. A judge'
 
 ## Method
 
-**The prompt.** Every contestant gets exactly this, with the brief's fields in place of the braces
+**The prompt, in a creator round.** Every contestant gets exactly this, with the brief's fields in place of the braces
 ([`lib/prompt.mjs`](lib/prompt.mjs)). The word target is round(seconds x 165 / 60): 83 words for 30 seconds, 165 for 60.
 
 ```text
@@ -65,8 +66,10 @@ renting, pets, home repair) so judges can check the facts. Two briefs state advi
 give (P11, how often to water tomatoes; P16, how often to bathe a dog); judges grade each script against the brief as
 written, so read those two briefs' truth grades with that in mind.
 
-**The judges.** Each script is read into one plain layout so judges cannot tell who wrote it, then graded twice, with the
-criteria in two seeded random orders and the score anchors reversed the second time. A judge must quote the script for every 1
+**The judges.** In a creator round each script is read into one plain layout; in a plain round judges read the reply whole and
+are told to grade the video it proposes (its spoken lines, the first of which is the hook, its on-screen text and visuals), not
+what the reply says about itself. Author names are withheld, though a reply's own format can hint at its maker. Each reply is
+graded twice, with the criteria in two random orders kept in the pack's key and the score anchors reversed the second time. A judge must quote the script for every 1
 or 2; a score whose quote is not in the script is dropped. From the next round a quote counts only as whole words, in order,
 from the script's own text (never the layout's labels), and at least two words; the pilot used a looser match (see
 [CHANGES.md](CHANGES.md)). A judge's grades count for a script only when both orderings were answered with a truth grade and at
@@ -105,11 +108,14 @@ least 12 of the 14 criteria. The judge's instructions and message are in [`lib/r
 - Hooks = 100 x (0.8 x the mean of H1 to H5 + 0.2 x the mean of D2 and D4h). Script = 100 x (0.8 x the judged script composite +
   0.2 x the mean of D1 to D5); the composite weights four groups: H1, H2, H3 and H5 35%; H4, S3 and S5 30%; S1, S2 and S4 20%; S6,
   S7 and S8 15%.
-- If the judges' mean truth score (S9) is under 0.5 of 2, the script score is capped at 40.
+- If the judges' truth score (S9), after each judge's strictness is removed, is under 0.5 of 2, the script score is capped at
+  40. (The pilot used the truth grades before that adjustment; `score --gate raw` reproduces it.)
+- In a plain round there are no code checks, so Hooks, Script, Facts and Visual plan are the judged shares alone, times 100.
 - Index = (20 x Hooks + 25 x Script) / 45. Facts = 100 x (0.8 x S9 + 0.2 x D5). Visual plan = 100 x (0.8 x the mean of H5 and
   S8 + 0.2 x D4), each term a share of its top grade.
-- Ranges are 95% bootstrap intervals over briefs, 2,000 resamples, each brief's two scripts averaged first. Models whose range
-  overlaps the tier leader's share its tier.
+- Ranges are 95% bootstrap intervals over briefs, 2,000 resamples, each brief's scripts averaged first. A tier starts with the
+  best model left; every model left whose range reaches that model's low end joins it. Each model's difference from the leader
+  is also given on matched briefs, with a paired 95% range, which says more than the tiers.
 
 ## Run it yourself
 
@@ -124,8 +130,8 @@ git clone https://github.com/viewgum/short-form-script-benchmark && cd short-for
 node bin/bench.mjs prompts --briefs briefs/pilot-2026-10-18.json --brief P01
 
 # Write the scripts. It stops before any call whose worst case could take the run past --max-usd, counts a failed call at its
-# worst case unless the vendor refused it outright, and a rerun resumes. A run folder keeps its settings in manifest.json and
-# refuses a resume with different briefs or models.
+# worst case unless the vendor refused it outright, and a rerun resumes. A run folder keeps its settings in manifest.json; a
+# resume may add contestants or run a subset, and is refused if the briefs, prompts or a contestant's model id changed.
 node bin/bench.mjs generate --briefs briefs/pilot-2026-10-18.json --contestants claude-haiku-5-5,gemini-4-neon \
   --run runs/my-run --samples 2 --rates rates.json --max-usd 5
 

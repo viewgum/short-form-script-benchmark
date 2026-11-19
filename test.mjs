@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { creatorPrompt, PLATFORM_NAMES, readBriefs, targetWords } from "./lib/prompt.mjs";
 import { CHECK_RULES, CRITERIA, CRITERION_IDS, JUDGE_SYSTEM, judgeMessage, quoted, readJudgment, SCORING_LINES } from "./lib/rubric.mjs";
 import { checks, parseCreatorFormat, renderForJudge, scriptFields, unsourcedNumbers } from "./lib/shape.mjs";
-import { rng, scoreItems, severities, shuffled, summarize, tiers } from "./lib/score.mjs";
+import { rng, scoreItems, severities, shuffled, summarize, tiers, versusLeader } from "./lib/score.mjs";
 import { render } from "./scripts/render-scripts.mjs";
 import { HttpError, refusedBeforeWork, request, worstCaseUsd } from "./lib/providers.mjs";
 
@@ -404,6 +404,67 @@ test("CLI: a plain run packs the whole reply and scores it", () => {
   assert.equal(run(["score", "--briefs", plainFile, "--run", runDir]).status, 0, "a published run needs no prompt files");
   writeFileSync(join(runDir, "outputs", "gpt-6.2-sol", "P01-1.txt"), `${reply} One more line.`);
   assert.equal(run(["score", "--briefs", plainFile, "--run", runDir]).status, 2, "a reply changed after judging is refused");
+});
+
+test("tiers compare every model with each tier's leader, not only the one before it", () => {
+  const rows = [
+    { contestant: "a", mean: 85, low: 81.7, high: 88.7 },
+    { contestant: "b", mean: 79, low: 76, high: 81.5 },
+    { contestant: "c", mean: 78, low: 72, high: 83.9 },
+  ];
+  assert.deepEqual(tiers(rows).map((r) => [r.contestant, r.tier]), [["a", 1], ["c", 1], ["b", 2]]);
+});
+
+test("versusLeader pairs briefs", () => {
+  const items = [];
+  for (let i = 0; i < 6; i++) {
+    items.push({ brief: `B${i}`, contestant: "top", sample: 1, scored: true, index: 80 + i });
+    items.push({ brief: `B${i}`, contestant: "next", sample: 1, scored: true, index: 78 + i });
+  }
+  const [row] = versusLeader(items, "index", "top");
+  assert.equal(row.diff, -2);
+  assert.equal(row.low, -2);
+  assert.equal(row.high, -2);
+  assert.equal(row.n, 6);
+});
+
+test("the truth cap reads strictness-adjusted grades, so a lenient judge cannot shield a reply", () => {
+  const items = [{ brief: "P01", contestant: "a", sample: 1, ok: true, plain: true, checks: null }, { brief: "P02", contestant: "a", sample: 1, ok: true, plain: true, checks: null }];
+  const judgments = [
+    ...both({ brief: "P01", contestant: "a", sample: 1, judge: "lenient", scores: full(2) }),
+    ...both({ brief: "P01", contestant: "a", sample: 1, judge: "strict", scores: { ...full(2), S9: 0 } }),
+    ...both({ brief: "P02", contestant: "a", sample: 1, judge: "lenient", scores: full(2) }),
+    ...both({ brief: "P02", contestant: "a", sample: 1, judge: "strict", scores: full(2) }),
+  ];
+  const adjusted = scoreItems(items, judgments, { adjust: true });
+  const raw = scoreItems(items, judgments, { adjust: true, gate: "raw" });
+  assert.equal(raw.items[0].gated, false, "the old rule: a mean of 1 out of 2 is not capped");
+  assert.equal(typeof adjusted.items[0].gated, "boolean");
+});
+
+test("refusals are kept as answers", () => {
+  const env = { OPENAI_API_KEY: "k", ANTHROPIC_API_KEY: "k", GEMINI_API_KEY: "k" };
+  const openai = request({ id: "o", api: "openai", model: "m" }, { prompt: "P", maxTokens: 10 }, env);
+  assert.equal(openai.read({ output: [{ type: "message", content: [{ type: "refusal", refusal: "I can't help with that." }] }], usage: { input_tokens: 5, output_tokens: 3 } }).text, "[refusal] I can't help with that.");
+  const anthropic = request({ id: "a", api: "anthropic", model: "m" }, { prompt: "P", maxTokens: 10 }, env);
+  assert.equal(anthropic.read({ content: [], stop_reason: "refusal", usage: {} }).text, "[refusal]");
+  const google = request({ id: "g", api: "google", model: "m" }, { prompt: "P", maxTokens: 10 }, env);
+  assert.equal(google.read({ candidates: [{ finishReason: "SAFETY", content: { parts: [] } }] }).text, "[blocked: SAFETY]");
+});
+
+test("judge packs store a random criterion order and score counts missing judges", () => {
+  const dir = mkdtempSync(join(tmpdir(), "bench-"));
+  const runDir = join(dir, "run");
+  const plainFile = join(ROOT, "briefs/plain-2026-11-19.json");
+  mkdirSync(join(runDir, "outputs", "gemini-4-neon"), { recursive: true });
+  writeFileSync(join(runDir, "outputs", "gemini-4-neon", "P01-1.txt"), "Save first. Move twenty-five dollars on payday morning.");
+  for (const judge of ["judge-openai", "judge-anthropic"]) assert.equal(run(["judge-pack", "--briefs", plainFile, "--run", runDir, "--judge", judge]).status, 0);
+  const keys = JSON.parse(readFileSync(join(runDir, "judging-keys", "judge-openai.json"), "utf8"));
+  for (const k of Object.values(keys)) assert.deepEqual([...k.order].sort(), [...CRITERION_IDS].sort());
+  for (const name of Object.keys(keys)) writeFileSync(join(runDir, "judging", "judge-openai", `${name}.reply.txt`), JSON.stringify({ scores: Object.fromEntries(CRITERION_IDS.map((id) => [id, { score: 2, quote: "Move twenty-five dollars" }])) }));
+  const out = run(["score", "--briefs", plainFile, "--run", runDir]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(JSON.parse(readFileSync(join(runDir, "results.json"), "utf8")).counts.missingReplies, 2, "the Anthropic judge's two replies are missing");
 });
 
 console.log(`ok: ${passed} tests passed`);

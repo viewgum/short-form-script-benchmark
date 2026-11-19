@@ -9,7 +9,7 @@ import { creatorPrompt, isPlain, readBriefs, WORDS_PER_MIN } from "../lib/prompt
 import { CRITERION_IDS, JUDGE_SYSTEM, judgeMessage, readJudgment } from "../lib/rubric.mjs";
 import { APIS, call, costUsd, refusedBeforeWork, worstCaseUsd } from "../lib/providers.mjs";
 import { checks, parseCreatorFormat, renderForJudge, scriptFields } from "../lib/shape.mjs";
-import { scoreItems, shuffled, summarize, tiers } from "../lib/score.mjs";
+import { scoreItems, shuffled, summarize, tiers, versusLeader } from "../lib/score.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const MAX_OUTPUT_TOKENS = 16000;
@@ -111,7 +111,13 @@ function lockRun(runDir) {
   } catch {
     throw new UsageError(`${runDir} is in use by another run (process ${readText(file).trim()}); delete ${file} if that run has ended`);
   }
-  const release = () => rmSync(file, { force: true });
+  let held = true;
+  const release = () => {
+    if (!held) return;
+    held = false;
+    process.off("exit", release);
+    rmSync(file, { force: true });
+  };
   process.once("exit", release);
   return release;
 }
@@ -182,8 +188,8 @@ function settleFailure(settle, error, worst) {
   return refused && [401, 403, 404].includes(error.status);
 }
 
-/** A reply's cost; a reply that reports no usage counts at its worst case. */
-const usdOf = (rates, result, worst) => (result.usage.input > 0 || result.usage.output > 0 ? costUsd(rates, result.usage) : worst);
+/** A reply's cost; a reply that does not report both its input and its output tokens counts at its worst case. */
+const usdOf = (rates, result, worst) => (result.usage.input > 0 && result.usage.output > 0 ? costUsd(rates, result.usage) : worst);
 
 async function generate(flags) {
   const briefsFile = need(flags, "briefs");
@@ -284,10 +290,11 @@ function readOutputs(runDir) {
 const packName = () => randomUUID().replace(/-/g, "").slice(0, 16);
 
 /** The judge prompt for one reply and ordering, rebuilt the same way every time, so a published run needs no prompt files. */
-function judgePrompt(brief, item, judge, perm) {
+function judgePrompt(brief, item, judge, perm, stored) {
   const shown = brief && isPlain(brief) ? item.raw.trim() : item.script ? renderForJudge(item.script) : "";
   if (!brief || !shown) return null;
-  const order = shuffled(CRITERION_IDS, `${item.brief}|${item.contestant}|${item.sample}|${judge}|${perm}`);
+  // New packs store a random order in the key, so the order says nothing about the author; older keys derived it.
+  const order = stored ?? shuffled(CRITERION_IDS, `${item.brief}|${item.contestant}|${item.sample}|${judge}|${perm}`);
   return `${JUDGE_SYSTEM}\n\n${judgeMessage(brief, shown, order, perm)}\n`;
 }
 const keyFile = (runDir, judge) => join(runDir, "judging-keys", `${judge}.json`);
@@ -311,11 +318,12 @@ function judgePack(flags) {
     if (!brief || !judgePrompt(brief, item, judge, 0)) continue;
     if (!keep(item.contestant)) continue;
     for (const perm of [0, 1]) {
-      const text = judgePrompt(brief, item, judge, perm);
       const known = Object.entries(keys).find(([, k]) => k.contestant === item.contestant && k.brief === item.brief && k.sample === item.sample && k.perm === perm);
+      const order = known?.[1].order ?? shuffled(CRITERION_IDS, randomUUID());
+      const text = judgePrompt(brief, item, judge, perm, order);
       const name = known ? known[0] : packName();
       if (known && known[1].promptSha256 !== sha256(text)) throw new UsageError(`the script or rubric behind ${name} changed since it was packed; use a new --run folder`);
-      keys[name] = { contestant: item.contestant, brief: item.brief, sample: item.sample, perm, promptSha256: sha256(text) };
+      keys[name] = { contestant: item.contestant, brief: item.brief, sample: item.sample, perm, order, promptSha256: sha256(text) };
       const file = join(dir, `${name}.prompt.txt`);
       if (existsSync(file)) continue;
       writeFileSync(file, text);
@@ -335,7 +343,8 @@ async function judgeApi(flags) {
   const rates = ratesFor(flags, [judgeId]);
   const cap = maxUsdOf(flags);
   const dir = join(runDir, "judging", judgeId);
-  if (!existsSync(dir)) throw new UsageError(`run judge-pack --judge ${judgeId} first`);
+  if (!existsSync(dir) || !existsSync(keyFile(runDir, judgeId))) throw new UsageError(`run judge-pack --judge ${judgeId} first`);
+  const packKeys = JSON.parse(readFileSync(keyFile(runDir, judgeId), "utf8"));
   needKeys([model]);
   const release = lockRun(runDir);
   try {
@@ -345,6 +354,8 @@ async function judgeApi(flags) {
       const replyFile = join(dir, name.replace(/\.prompt\.txt$/, ".reply.txt"));
       if (existsSync(replyFile) && /\{[\s\S]*"scores"[\s\S]*\}/.test(readFileSync(replyFile, "utf8"))) continue;
       const text = readFileSync(join(dir, name), "utf8");
+      const key = packKeys[name.replace(/\.prompt\.txt$/, "")];
+      if (!key || sha256(text) !== key.promptSha256) throw new UsageError(`${name} does not match its key; pack again before judging`);
       const message = text.slice(JUDGE_SYSTEM.length).trim();
       const worst = worstCaseUsd(rates[judgeId], Buffer.byteLength(text), JUDGE_MAX_TOKENS);
       const settle = money.reserve(worst, { role: "judge", who: judgeId, file: name });
@@ -401,8 +412,9 @@ function score(flags) {
       if (!existsSync(file) || !item?.ok) continue;
       // The reply must answer the prompt its key names: rebuilt from the reply it graded, and the prompt file when one is kept.
       const promptFile = join(runDir, "judging", judge, `${name}.prompt.txt`);
-      const rebuilt = judgePrompt(briefs.get(key.brief), rawOf.get(`${key.contestant}|${key.brief}|${key.sample}`), judge, key.perm);
-      const stale = key.promptSha256 && (sha256(rebuilt ?? "") !== key.promptSha256 || (existsSync(promptFile) && sha256(readFileSync(promptFile, "utf8")) !== key.promptSha256));
+      const rebuilt = judgePrompt(briefs.get(key.brief), rawOf.get(`${key.contestant}|${key.brief}|${key.sample}`), judge, key.perm, key.order);
+      if (!/^[0-9a-f]{64}$/.test(key.promptSha256 ?? "")) throw new UsageError(`${name} for ${judge} has no prompt hash in its key`);
+      const stale = sha256(rebuilt ?? "") !== key.promptSha256 || (existsSync(promptFile) && sha256(readFileSync(promptFile, "utf8")) !== key.promptSha256);
       if (stale) throw new UsageError(`${name} for ${judge} does not match its key; the reply or the pack changed after it was answered`);
       const read = readJudgment(readFileSync(file, "utf8"), item.plain ? [item.parsed.raw] : scriptFields(item.parsed));
       if (!read) { unreadable += 1; continue; }
@@ -415,10 +427,21 @@ function score(flags) {
     const b = findModel(models, judge)?.maker;
     return Boolean(a && b && a !== b);
   };
-  const { items: scored, severity, incomplete } = scoreItems(items, judgments, { adjust: true, keep });
+  // Every reply should carry two orderings from every judge of another maker that has a pack in this run.
+  const judgeIds = dirs(join(runDir, "judging"));
+  let missing = 0;
+  for (const item of items.filter((i) => i.ok)) {
+    for (const judge of judgeIds.filter((j) => keep(item.contestant, j))) {
+      const got = judgments.filter((j) => j.judge === judge && j.contestant === item.contestant && j.brief === item.brief && j.sample === item.sample).length;
+      missing += Math.max(0, 2 - got);
+    }
+  }
+  const { items: scored, severity, incomplete } = scoreItems(items, judgments, { adjust: true, keep, gate: flags.gate === "raw" ? "raw" : "adjusted" });
   const metrics = ["index", "hooks", "script", "facts", "visualPlan"];
   const summary = Object.fromEntries(metrics.map((metric) => [metric, summarize(scored, metric)]));
   const ranked = tiers(summary.index);
+  const leader = ranked[0]?.contestant;
+  const paired = leader ? versusLeader(scored, "index", leader) : [];
   const contestantIds = [...new Set(items.map((i) => i.contestant))];
   const samplesSeen = Math.max(0, ...items.map((i) => i.sample));
   const coverage = contestantIds.map((id) => ({
@@ -439,15 +462,23 @@ function score(flags) {
     }),
     judges: [...new Set(judgments.map((j) => j.judge))].map((id) => ({ id, name: findModel(models, id)?.name ?? id, maker: findModel(models, id)?.maker ?? null })),
     briefs: briefList.map(({ id, platform, targetSec, niche, audience, topic, ask }) => (ask ? { id, platform, targetSec, ask } : { id, platform, targetSec, niche, audience, topic })),
-    counts: { scripts: items.length, unparsed: items.filter((i) => !i.ok).length, judgments: judgments.length, unreadableReplies: unreadable, droppedQuotes: dropped, incompleteGrades: incomplete },
+    counts: { scripts: items.length, unparsed: items.filter((i) => !i.ok).length, judgments: judgments.length, unreadableReplies: unreadable, droppedQuotes: dropped, incompleteGrades: incomplete, missingReplies: missing },
     coverage,
     severity,
     summary,
     tiers: ranked,
+    versusLeader: paired,
     items: scored.map(({ parsed, ...rest }) => rest),
     outputs: items.filter((i) => i.ok).map((i) => ({ brief: i.brief, contestant: i.contestant, sample: i.sample, script: i.parsed })),
   };
   writeFileSync(join(runDir, "results.json"), `${JSON.stringify(results, null, 2)}\n`);
+  // Every call the run made, without its cost: what a reader needs to see that each slot was asked once.
+  const ledgerFile = join(runDir, "ledger.jsonl");
+  if (existsSync(ledgerFile)) {
+    const attempts = readFileSync(ledgerFile, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)).filter((r) => r.kind === "settled" || r.kind === undefined)
+      .map(({ at, role, who, brief, sample, file, ok, stop, usage, note, uncertain }) => ({ at, role, who, brief, sample, file, ok, stop, usage, note, uncertain }));
+    writeFileSync(join(runDir, "attempts.jsonl"), attempts.map((a) => JSON.stringify(a)).join("\n") + "\n");
+  }
   const row = (metric, id) => {
     const s = summary[metric].find((x) => x.contestant === id);
     return s ? `${round1(s.mean)} (${round1(s.low)} to ${round1(s.high)})` : "not scored";
@@ -455,9 +486,10 @@ function score(flags) {
   console.log("| Tier | Contestant | Index | Hooks | Script | Facts | Visual plan |");
   console.log("|---|---|---|---|---|---|---|");
   for (const t of ranked) console.log(`| ${t.tier} | ${findModel(models, t.contestant)?.name ?? t.contestant} | ${row("index", t.contestant)} | ${row("hooks", t.contestant)} | ${row("script", t.contestant)} | ${row("facts", t.contestant)} | ${row("visualPlan", t.contestant)} |`);
+  for (const p of paired) console.log(`${findModel(models, p.contestant)?.name ?? p.contestant} minus ${findModel(models, p.leader)?.name ?? p.leader}: ${round1(p.diff)} (${round1(p.low)} to ${round1(p.high)}) on ${p.n} matched briefs`);
   for (const c of coverage.filter((c) => c.scored < c.expected)) console.log(`${c.contestant}: ${c.scored} of ${c.expected} expected scripts scored (${c.scripts} written, ${c.unparsed} unparsed)`);
   const n = results.counts;
-  console.log(`\n${n.scripts} scripts (${n.unparsed} unparsed), ${n.judgments} judgments, ${n.unreadableReplies} unreadable replies, ${n.incompleteGrades} incomplete grades left out, ${n.droppedQuotes} scores dropped for a quote not in the script. Written to ${join(runDir, "results.json")}`);
+  console.log(`\n${n.scripts} scripts (${n.unparsed} unparsed), ${n.judgments} judgments, ${n.unreadableReplies} unreadable replies, ${n.missingReplies} judge replies missing, ${n.incompleteGrades} incomplete grades left out, ${n.droppedQuotes} scores dropped for a quote not in the script. Written to ${join(runDir, "results.json")}`);
   return 0;
 }
 
@@ -476,7 +508,8 @@ const HELP = `Usage: ${NAME} <command> [flags]   (or: node bin/bench.mjs <comman
   generate    --briefs FILE --contestants IDS|all --run DIR --rates FILE --max-usd N [--samples 2] [--concurrency 1] [--models FILE]
   judge-pack  --briefs FILE --run DIR --judge ID [--all-makers]   two judge prompts per script of another maker, for any model or CLI
   judge       --run DIR --judge ID --rates FILE --max-usd N [--models FILE]   answer a pack through the judge's API
-  score       --briefs FILE --run DIR [--models FILE]     checks, judges from other makers only, ranges and tiers
+  score       --briefs FILE --run DIR [--models FILE] [--gate raw]   checks, judges from other makers only, ranges, tiers and
+                                                      paired differences from the leader (--gate raw: the pilot's truth cap)
 
 Keys come from ANTHROPIC_API_KEY, OPENAI_API_KEY and GEMINI_API_KEY. Rates are yours: USD per million tokens per model id.
 Exit codes: 0 done, 1 some calls failed, 2 bad input, 3 stopped at the spending cap.`;
