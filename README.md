@@ -105,15 +105,17 @@ least 12 of the 14 criteria. The judge's instructions and message are in [`lib/r
 - Only judges from another maker count toward a model's score, after removing each judge's strictness, estimated from every
   script two judges graded.
 - Every judged criterion and every check below is taken as a share of its top grade (a 1 counts as 0.5, a 2 as 1).
-- Hooks = 100 x (0.8 x the mean of H1 to H5 + 0.2 x the mean of D2 and D4h). Script = 100 x (0.8 x the judged script composite +
+- In a creator round: Hooks = 100 x (0.8 x the mean of H1 to H5 + 0.2 x the mean of D2 and D4h). Script = 100 x (0.8 x the judged script composite +
   0.2 x the mean of D1 to D5); the composite weights four groups: H1, H2, H3 and H5 35%; H4, S3 and S5 30%; S1, S2 and S4 20%; S6,
   S7 and S8 15%.
 - If the judges' truth score (S9), after each judge's strictness is removed, is under 0.5 of 2, the script score is capped at
   40. (The pilot used the truth grades before that adjustment; `score --gate raw` reproduces it.) `results.json` also gives Index
   with no cap and with the other cap rule, under `sensitivity`, so a reader can see how much the cap moves the order.
-- In a plain round there are no code checks, so Hooks, Script, Facts and Visual plan are the judged shares alone, times 100.
-- Index = (20 x Hooks + 25 x Script) / 45. Facts = 100 x (0.8 x S9 + 0.2 x D5). Visual plan = 100 x (0.8 x the mean of H5 and
-  S8 + 0.2 x D4), each term a share of its top grade.
+- In a creator round: Facts = 100 x (0.8 x S9 + 0.2 x D5). Visual plan = 100 x (0.8 x the mean of H5 and S8 + 0.2 x D4), each
+  term a share of its top grade.
+- In a plain round replies come in any layout, so there are no code checks: Hooks = 100 x the mean of H1 to H5, Script = 100 x
+  the judged composite, Facts = 100 x S9, Visual plan = 100 x the mean of H5 and S8. One reply per brief.
+- In both: Index = (20 x Hooks + 25 x Script) / 45.
 - Ranges are 95% bootstrap intervals over briefs, 2,000 resamples, each brief's scripts averaged first. A tier starts with the
   best model left; every model left whose range reaches that model's low end joins it. Each model's difference from the leader
   is also given on matched briefs, with a paired 95% range, which says more than the tiers.
