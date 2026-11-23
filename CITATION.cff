@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this benchmark, please cite it as below."
+type: software
+title: "Short-form script benchmark: how AI models write 30 to 60 second scripts for TikTok, YouTube Shorts and Reels"
+authors:
+  - name: "ViewGum"
+    website: "https://viewgum.com"
+repository-code: "https://github.com/viewgum/short-form-script-benchmark"
+license:
+  - MIT
+  - CC-BY-4.0
+keywords:
+  - benchmark
+  - LLM evaluation
+  - short-form video
+  - scripts

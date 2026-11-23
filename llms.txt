@@ -1,0 +1,14 @@
+# short-form-script-benchmark
+
+> An open benchmark for AI models writing 30 to 60 second voiceover scripts for TikTok, YouTube Shorts and Reels: 16 topics as
+> creator briefs and as one-line asks, the prompts, a 14-criterion rubric, the checks code runs, the scoring code and a runner
+> with a spending cap. Method only: results are not published here yet. Code MIT, data CC BY 4.0.
+
+- [README](https://github.com/viewgum/short-form-script-benchmark/blob/main/README.md): the method, how to run it and what it does not measure
+- [briefs/](https://github.com/viewgum/short-form-script-benchmark/tree/main/briefs): the topics
+- [method/published-method.json](https://github.com/viewgum/short-form-script-benchmark/blob/main/method/published-method.json): rubric and checks
+- [CHANGES.md](https://github.com/viewgum/short-form-script-benchmark/blob/main/CHANGES.md): method changes, dated
+
+## Related
+
+- [skills](https://github.com/viewgum/skills): hook-check grades a hook on five of its criteria and short-form-script runs its five code checks, inside an agent
